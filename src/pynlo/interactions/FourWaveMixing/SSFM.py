@@ -583,26 +583,44 @@ class SSFM:
         for num in range(0, num_trials):
 
             pulse = pulse_in.create_cloned_pulse()
-            pulse.add_noise(noise_type=noise_type)
+            pulse.add_noise(noise_type='one_photon_freq')
 
-            y, AW, AT, pulse_out = self.propagate(pulse_in=pulse, fiber=fiber, n_steps=n_steps)
+            y, AW, AT, pulse_out = self.propagate(pulse_in=pulse, fiber=fiber, n_steps=n_steps, reload_fiber_each_step=reload_fiber_each_step, tshock_correction=tshock_correction)
 
-            results.append((y, AW, AT, pulse_in, pulse_out))
+            results.append((y, AW, AT, pulse_out))
 
+        print('foobar')
         
-        for n1, (y, E1, AT, pulsein, pulseout) in enumerate(results):
-            for n2, (y, E2, AT, pulsein, pulseout) in enumerate(results):
+#        for n1, (y, E1, AT, pulseout) in enumerate(results):
+#            for n2, (y, E2, AT, pulseout) in enumerate(results):
+#                if n1 == n2: continue # don't compare the same trial
+#
+#                g12 = np.conj(E1[:,-1])*E2[:,-1]/np.sqrt(np.abs(E1[:,-1])**2 * np.abs(E2[:,-1])**2)
+#                if 'g12_stack' not in locals():
+#                    g12_stack = g12
+#                else:
+#                    g12_stack = np.vstack((g12, g12_stack))
+#
+#
+#        # print g12_stack.shape, g12_stack.transpose().shape
+#        g12W = np.abs(np.mean(g12_stack, axis=0))  
+        
+        numerator = []
+        I1 = []
+        I2 = []
+
+        for n1, (y, E1, AT, pulseout) in enumerate(results):
+            for n2, (y, E2, AT, pulseout) in enumerate(results):
                 if n1 == n2: continue # don't compare the same trial
 
-                g12 = np.conj(E1)*E2/np.sqrt(np.abs(E1)**2 * np.abs(E2)**2)
-                if 'g12_stack' not in locals():
-                    g12_stack = g12
-                else:
-                    g12_stack = np.dstack((g12, g12_stack))
+                numerator.append(np.conj(E1[:,-1])*E2[:,-1])
+                I1.append(np.abs(E1[:,-1])**2)
+                I2.append(np.abs(E2[:,-1])**2)
 
 
         # print g12_stack.shape, g12_stack.transpose().shape
-        g12W = np.abs(np.mean(g12_stack, axis=2))  
+        g12W = np.abs(np.mean(np.array(numerator),axis=0)/np.sqrt(np.mean(np.array(I1),axis=0)*np.mean(np.array(I2),axis=0)))
+        print('%d total trials'%len(numerator))
         
         return g12W, results   
                             

@@ -14,18 +14,14 @@
 #
 #    You should have received a copy of the GNU General Public License
 #    along with pyNLO.  If not, see <http://www.gnu.org/licenses/>.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
+from __future__ import print_function
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy import constants, signal 
 from pynlo.util import FFT_t, IFFT_t
+import builtins as exceptions
 import warnings
-import scipy.ndimage.interpolation
-
-import matplotlib.pyplot as plt # for testing. remove!
 
 class Pulse:
     """Class which carried all information about the light field. This class 
@@ -70,26 +66,22 @@ class Pulse:
     _cache_W_Hz                     = None
     
     _not_ready_msg = 'Pulse class is not yet ready -- set center wavelength, time window, and npts.'    
-    def load_consts(self):
-        r""" Load constants, needed after unpickling in some cases """
-        self._c_nmps = constants.value('speed of light in vacuum')*1e9/1e12 # c in nm/ps
-        self._c_mks  = constants.value('speed of light in vacuum') # m/s                
     ####### Private properties    #############################################
     def __get_w0(self):
         r""" Return center angular frequency (THz) """
         if self._centerfrequency is None:
-            raise ValueError('Center frequency is not set.')
+            raise exceptions.ValueError('Center frequency is not set.')
         return 2.0 * np.pi * self._centerfrequency    
     def __get_W(self):
         r""" Return angular frequency grid (THz) """
         if not self._ready:
-            raise RuntimeError(self._not_ready_msg)
+            raise exceptions.RuntimeError(self._not_ready_msg)
         else:
             return self._V + self._w0
     def __get_T(self):
         r""" Return temporal grid (ps) """
         if not self._ready:
-            raise RuntimeError(self._not_ready_msg)
+            raise exceptions.RuntimeError(self._not_ready_msg)
         else:
             TGRID =  np.linspace(-self._time_window / 2.0,
                                   self._time_window / 2.0,
@@ -98,14 +90,14 @@ class Pulse:
     def __get_dT(self):
         r""" Return time grid spacing (ps) """
         if not self._ready:
-            raise RuntimeError(self._not_ready_msg)
+            raise exceptions.RuntimeError(self._not_ready_msg)
         else:
             return self._time_window / np.double(self._n)
 
     def __get_V(self):
         r""" Return relative angular frequency grid (THz) """
         if not self._ready:
-            raise RuntimeError(self._not_ready_msg)
+            raise exceptions.RuntimeError(self._not_ready_msg)
         else:
             VGRID = 2.0*np.pi*np.transpose(np.arange(-self._n/2,
                                                       self._n/2))/(self._n*self._dT) # Frequency grid (angular THz)        
@@ -194,12 +186,10 @@ class Pulse:
         if self._AW is not None:
             return self._AW.copy()
         else:
-            raise RuntimeError('Grids not yet set up.')
+            raise exceptions.RuntimeError('Grids not yet set up.')
     def _get_AT(self):        
-        if self._AW is not None:
-            return IFFT_t( self._AW.copy() )
-        else:
-            raise RuntimeError('Grids not yet set up.')    
+        return IFFT_t( self._AW.copy() )
+    
     def set_AW(self, AW_new):
         r""" Set the value of the frequency-domain electric field.
         
@@ -210,7 +200,7 @@ class Pulse:
         
         """
         if not self._ready:
-            raise RuntimeError(self._not_ready_msg)
+            raise exceptions.RuntimeError(self._not_ready_msg)
         if self._AW is None:
             self._AW = np.zeros((self._n,), dtype = np.complex128)
         self._AW[:] = AW_new
@@ -474,11 +464,11 @@ class Pulse:
 
     def _ext_units_nmps(self):
         if self._external_units is None:
-            RuntimeError('Unit type has not been set.')
+            exceptions.RuntimeError('Unit type has not been set.')
         return self._external_units == 'nmps'
     def _ext_units_mks(self):
         if self._external_units is None:
-            RuntimeError('Unit type has not been set.')
+            exceptions.RuntimeError('Unit type has not been set.')
         return self._external_units == 'mks'
 
     ####### Core public  functions     ########################################        
@@ -543,7 +533,7 @@ class Pulse:
         
         """                
         if self._n is None:
-            raise RuntimeError('Set number of points before setting time window.')
+            raise exceptions.RuntimeError('Set number of points before setting time window.')
         # frequency grid is 2 pi/ dT * [-1/2, 1/2]
         # dT is simply time_window / NPTS
         self._set_time_window(T)
@@ -559,7 +549,7 @@ class Pulse:
              New grid time span [s]        
         """                
         if self._n is None:
-            raise RuntimeError('Set number of points before setting time window.')        
+            raise exceptions.RuntimeError('Set number of points before setting time window.')        
         self._set_time_window(T * 1e12)
         
     def set_frequency_window_THz(self, DF):
@@ -575,7 +565,7 @@ class Pulse:
         
         """                
         if self._n is None:
-            raise RuntimeError('Set number of points before setting frequency window.')
+            raise exceptions.RuntimeError('Set number of points before setting frequency window.')
         # Internally, the time window is used to determine the grids. Calculate
         # the time window size as  1 / dF = 1 / (DF / N)
         T = self._n / float(DF)
@@ -593,7 +583,7 @@ class Pulse:
         
         """                
         if self._n is None:
-            raise RuntimeError('Set number of points before setting frequency window.')
+            raise exceptions.RuntimeError('Set number of points before setting frequency window.')
         # Internally, the time window is used to determine the grids. Calculate
         # the time window size as  1 / dF = 1 / (DF / N)
         T = self._n / float(DF)
@@ -649,28 +639,31 @@ class Pulse:
         
         # This is all to get the number of photons/second in each frequency bin:
         size_of_bins = self.dF_mks                          # Bin width in [Hz]
-        power_per_bin = np.abs(self.AW)**2 / size_of_bins   # [J*Hz] / [Hz] = [J]
+        #power_per_bin = np.abs(self.AW)**2 * size_of_bins  # [W/Hz]  * [Hz]
+        energy_per_bin = np.abs(self.AW)**2 / size_of_bins # [J*Hz] / [Hz] = [J]
             
         h = constants.Planck # use scipy's constants package
         
         #photon_energy = h * self.W_THz/(2*np.pi) * 1e12
-        photon_energy = h * self.F_mks # h nu [J]
-        photons_per_bin = power_per_bin/photon_energy # photons / second
+        photon_energy = h * np.abs(self.F_mks) # h nu
+        photons_per_bin = energy_per_bin/photon_energy # photons / bin
         photons_per_bin[photons_per_bin<0] = 0 # must be positive.
+        print(np.sum(np.sqrt(photons_per_bin)))
+        print(photons_per_bin.shape)
         
         # now generate some random intensity and phase arrays:
         size = np.shape(self.AW)[0]
-        random_intensity = np.random.normal( size=size)
-        random_phase     = np.random.uniform(size=size) * 2 * np.pi
+        random_intensity = np.random.normal(size=size)
+        random_phase = np.random.uniform(size=size) * 2 * np.pi
         
         if noise_type == 'sqrt_N_freq': # this adds Gausian noise with a sigma=sqrt(photons_per_bin)
-                                                                      # [J]         # [Hz]
-            noise = random_intensity * np.sqrt(photons_per_bin) * photon_energy * size_of_bins * np.exp(1j*random_phase)
+            noise = random_intensity * np.sqrt(photons_per_bin) * photon_energy * size_of_bins * 1e12 * np.exp(1j*random_phase)
         
         elif noise_type == 'one_photon_freq': # this one photon per bin in the frequecy domain
-            noise = random_intensity * photon_energy * size_of_bins * np.exp(1j*random_phase)
+            #noise = random_intensity * photon_energy * size_of_bins * 1e12 * np.exp(1j*random_phase)
+            noise = np.sqrt(photon_energy * size_of_bins) * np.exp(1j*random_phase)
         else:
-            raise ValueError('noise_type not recognized.')
+            raise ValueError('noise_type not recognized. So far only sqrt_N_freq is supported')
         
         self.set_AW(self.AW + noise)
         
@@ -811,20 +804,6 @@ class Pulse:
         self.set_center_wavelength_nm(p.center_wavelength_nm)
         self._frep_MHz = p.frep_MHz
         self.set_AT(p.AT)
-    def get_pulse_dict(self):
-        d = {"NPTS" : self.NPTS,
-             "time_window_ps" : self.time_window_ps,
-             "center_wavelength_nm" : self.center_wavelength_nm,
-             "frep_MHz" : self.frep_MHz,
-             "AT_re" : self.AT.real.tolist(),
-             "AT_im" : self.AT.imag.tolist()}
-        return d
-    def load_pulse_dict(self, d):    
-        self.set_NPTS(d["NPTS"])
-        self.set_time_window_ps(d["time_window_ps"])
-        self.set_center_wavelength_nm(d["center_wavelength_nm"])
-        self._frep_MHz = d["frep_MHz"]
-        self.set_AT(np.array(d["AT_re"]) + 1j*np.array(d["AT_im"]) )
     def create_cloned_pulse(self):
         '''Create and return new pulse instance identical to this instance.'''
         p = Pulse()
@@ -836,7 +815,7 @@ class Pulse:
             frequency-grid values from this pulse. """
             
         if NPTS >= self.NPTS:
-            raise ValueError("New pulse must have fewer points than existing one.")
+            raise exceptions.ValueError("New pulse must have fewer points than existing one.")
         p = Pulse()
         center_idx = np.argmin(abs(self.wl_nm - center_wl_nm))
 
@@ -858,10 +837,8 @@ class Pulse:
         weights = np.sum(abs(self.AW)**2)
         result = avg / (weights * 2.0 * np.pi)
         return result
-        
     def calculate_weighted_avg_wavelength_nm(self):
         return 1.0e9 * self._c_mks / self.calculate_weighted_avg_frequency_mks()
-        
     def calculate_intensity_autocorrelation(self):  
         r""" Calculates and returns the intensity autocorrelation,  
         :math:`\int P(t)P(t+\tau) dt` 
@@ -874,7 +851,6 @@ class Pulse:
             
         """  
         return np.correlate(abs(self.AT)**2, abs(self.AT), mode='same')  
-        
     def write_frog(self,
                  fileloc = 'broadened_er_pulse.dat', # default EDFA spectrum
                  flip_phase = True):
@@ -897,38 +873,26 @@ class Pulse:
         # Write pulse data file
         np.savetxt(self.fileloc, np.vstack((wavel_data, inten_data, phase_data)).T) 
     
-    def spectrogram(self, gate_type='xfrog', gate_function_width_ps=0.020, time_steps=500):
-        """This calculates a spectrogram, essentially the spectrally-resolved cross-correlation of the pulse.
-        
-        Generally, the gate_type should set to 'xfrog', which performs a cross-correlation similar to the XFROG 
-        experiment, where the pulse is probed by a short, reference pulse. The temporal width of this pulse 
-        is set by the "gate_function_width_ps" parameter.
-        
-        See Dudley Fig. 10, on p1153 for a description
+    def spectrogram(self, gate_function_width_ps=0.050, time_steps=500):
+        """
+        This calculates a spectrogram, essentially showing the spectrum
+        as a funcition of time delay. See Dudley Fig. 10, on p1153 for a description
         of the spectrogram in the context of supercontinuum generaiton. 
         (http://dx.doi.org/10.1103/RevModPhys.78.1135)
         
-        Alternatively, the gate_type can be set to 'frog', which simulates a SHG-FROG measurement,
-        where the pulse is probed with a copy of itself, in an autocorrelation fashion.
-        Interpreting this FROG spectrogram is less intuitive, so this is mainly useful for comparison
-        with experimentally recorded FROG spectra (which are often easier to acquire than XFROG measurements.)
-        
-        A nice discussion of various FROG "species" is available here: http://frog.gatech.edu/tutorial.html
         
         Parameters
         ----------
-        gate_type : string
-            Determines the type of gate function. Can be either 'xfrog' or 'frog'.
-            Should likely be set to 'xfrog' unless comparing with experiments.
-            See discussion above. Default is 'xfrog'.
+        
         gate_function_width : float
-            the width of the gate function in seconds. Only applies when gate_type='xfrog'.
-            A shorter duration provides better temporal resolution, but worse spectral resolution,
-            so this is a trade-off. Typically, 0.01 to 0.1 ps works well.
+            the width of the gate function in seconds. Typically something like 
+            0.050 ps (50 fs) is used
+        
         time_steps : int
             the number of delay time steps to use. More steps makes a higher 
-            resolution spectrogram, but takes longer to process and plot.
-            Default is 500
+            resolution spectrogram, but takes longer to process and plots.
+            ~500 seems about right.
+        
         
         Returns
         -------
@@ -940,11 +904,12 @@ class Pulse:
             Following the convention of Dudley, the frequency runs along the y-axis
             (axis 0) and the time runs alon the x-axis (axis 1)
         
+        
         Example
         -------
+        
         The spectrogram can be visualized using something like this: ::
-            
-            import matplotlib.pyplot as plt
+        
             plt.figure()
             DELAYS, FREQS, extent, spectrogram = pulse.spectrogram()
             plt.imshow(spectrogram, aspect='auto', extent=extent)
@@ -959,6 +924,8 @@ class Pulse:
         .. image:: https://cloud.githubusercontent.com/assets/1107796/13677657/25075ea4-e6a8-11e5-98b4-7813fa9a6425.png
            :width: 500px
            :alt: example_result
+            
+    
         """
 
         def gauss(x, A=1, mu=0, sigma=1): # gaussian function
@@ -967,33 +934,15 @@ class Pulse:
         t = self.T_ps # working in ps
         
         delay = np.linspace(np.min(t), np.max(t), time_steps)
-        D, T  = np.meshgrid(delay, t)
+        D, T = np.meshgrid(delay, t)
         D, AT = np.meshgrid(delay, self.AT)
         
         phase = np.unwrap(np.angle(AT))
         amp   = np.abs(AT)
         
-                
-        if gate_type == 'xfrog':
-            gate_function = gauss(T, mu=D, sigma=gate_function_width_ps)
-        elif gate_type=='frog':
-            dstep = float(delay[1]-delay[0])
-            tstep = float(    t[1]-    t[0])
-            # calculate the coordinates of the new array
-            dcoord = D*0
-            tcoord = (T-D-np.min(T))/tstep
-            
-            # gate_function = scipy.ndimage.interpolation.map_coordinates(amp, (tcoord, dcoord))
-            
-            gate_function_real = scipy.ndimage.interpolation.map_coordinates(np.real(AT), (tcoord, dcoord))
-            gate_function_imag = scipy.ndimage.interpolation.map_coordinates(np.imag(AT), (tcoord, dcoord))
-            gate_function = gate_function_real + 1j*gate_function_imag
-
-        else:
-            raise ValueError('Type \""%s\"" not recognized. Type must be \"xfrog\" or \"frog\".'%gate_type)
-            
         # make a 2D array of E(time, delay)
-        E = amp * gate_function * np.exp(1j*(2 * np.pi * T * self.center_frequency_THz + phase) )
+        E = amp * np.cos(2 * np.pi * T * self.center_frequency_THz + phase) * \
+            gauss(T, mu=D, sigma=gate_function_width_ps) # gate function
         
         spectrogram = np.fft.fft(E, axis=0)
         freqs = np.fft.fftfreq(np.shape(E)[0], t[1]-t[0])
@@ -1002,9 +951,9 @@ class Pulse:
         
         # just take positive frequencies:
         h = np.shape(spectrogram)[0]
-        spectrogram = spectrogram[:h//2]
-        DELAYS      = DELAYS[:h//2]
-        FREQS       = FREQS[:h//2]
+        spectrogram = spectrogram[:h/2]
+        DELAYS      = DELAYS[:h/2]
+        FREQS       = FREQS[:h/2]
                 
         # calculate the extent to make it easy to plot:
         extent = (np.min(DELAYS), np.max(DELAYS), np.min(FREQS), np.max(FREQS))
