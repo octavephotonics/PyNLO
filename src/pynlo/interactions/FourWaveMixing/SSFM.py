@@ -29,10 +29,10 @@ import scipy.fftpack
 
 
 try:
-    import pyfftw
-    PYFFTW_AVAILABLE=True
+    import mkl_fft
+    MKL_AVAILABLE=True
 except:
-    PYFFTW_AVAILABLE=False
+    MKL_AVAILABLE=False
     
 
 class SSFM:
@@ -90,45 +90,17 @@ class SSFM:
         
         self.n = pulse_in.NPTS
         
-        if PYFFTW_AVAILABLE:
+        if MKL_AVAILABLE:
             
-            self.fft_input    = pyfftw.empty_aligned(self.n, dtype='complex128')      
-            self.fft_output   = pyfftw.empty_aligned(self.n, dtype='complex128')      
-            self.ifft_input   = pyfftw.empty_aligned(self.n, dtype='complex128')      
-            self.ifft_output  = pyfftw.empty_aligned(self.n, dtype='complex128')      
-    
-            self.fft_input_2  = pyfftw.empty_aligned(self.n, dtype='complex128')      
-            self.fft_output_2 = pyfftw.empty_aligned(self.n, dtype='complex128')      
-            self.ifft_input_2 = pyfftw.empty_aligned(self.n, dtype='complex128')      
-            self.ifft_output_2= pyfftw.empty_aligned(self.n, dtype='complex128')      
+            self.fft_input    = np.ndarray((self.n,), dtype='complex128')
+            self.fft_output   = np.ndarray((self.n,), dtype='complex128')
+            self.ifft_input   = np.ndarray((self.n,), dtype='complex128')
+            self.ifft_output  = np.ndarray((self.n,), dtype='complex128')
 
-            self.ifft_input_3 = pyfftw.empty_aligned(self.n, dtype='complex128')      
-            self.ifft_output_3= pyfftw.empty_aligned(self.n, dtype='complex128')      
-    
-    
-            # To be double sure that there are no problems, also make 2 copies of
-            # the FFT objects. This lets us nest ifft_2 around a function using ifft
-            # without worrying about potential problems.
-            #self.fft    = pyfftw.builders.fft(self.fft_input)
-            #self.fft_2  = pyfftw.builders.fft(self.fft_input_2)
-            #self.ifft   = pyfftw.builders.fft(self.ifft_input)
-            #self.ifft_2 = pyfftw.builders.fft(self.ifft_input_2)
-            self.fft = pyfftw.FFTW(self.fft_input,
-                                   self.fft_output,
-                                   direction='FFTW_BACKWARD')
-            self.fft_2 = pyfftw.FFTW(self.fft_input_2,
-                                     self.fft_output_2,
-                                     direction='FFTW_BACKWARD')
-            
-            self.ifft = pyfftw.FFTW(self.ifft_input,
-                                    self.ifft_output,
-                                    direction='FFTW_FORWARD')
-            self.ifft_2 = pyfftw.FFTW(self.ifft_input_2,
-                                      self.ifft_output_2,
-                                      direction='FFTW_FORWARD')
-            self.ifft_3 = pyfftw.FFTW(self.ifft_input_3,
-                                      self.ifft_output_3,
-                                      direction='FFTW_FORWARD')                                      
+            self.fft_input_2  = np.ndarray((self.n,), dtype='complex128')
+            self.fft_output_2 = np.ndarray((self.n,), dtype='complex128')
+            self.ifft_input_2 = np.ndarray((self.n,), dtype='complex128')
+            self.ifft_output_2= np.ndarray((self.n,), dtype='complex128')                                              
             
         else:
             self.fft_input    = np.ndarray((self.n,), dtype='complex128')
@@ -684,71 +656,61 @@ class SSFM:
 
     ### Lots of boring FFT code from here on out.
     def FFT_t(self, A):
-        if PYFFTW_AVAILABLE:
+        if MKL_AVAILABLE:
             if global_variables.PRE_FFTSHIFT:
-                self.fft_input[:] = A
-                return self.fft()                
+                return mkl_fft.ifft(A)              
             else:
-                self.fft_input[:] = fftshift(A)
-                return ifftshift(self.fft())
+                return ifftshift(mkl_fft.ifft(fftshift(A)))
         else:
             if global_variables.PRE_FFTSHIFT:
                 return scipy.fftpack.ifft(A)
             else:
                 return ifftshift(scipy.fftpack.ifft(fftshift(A)))
     def IFFT_t(self, A):        
-        if PYFFTW_AVAILABLE:
+        if MKL_AVAILABLE:
             if global_variables.PRE_FFTSHIFT:
-                self.ifft_input[:] = A
-                return self.ifft()
+                return mkl_fft.fft(A)
             else:
-                self.ifft_input[:] = fftshift(A)
-                return ifftshift(self.ifft())
+                return ifftshift(mkl_fft.fft(fftshift(A)))
         else:
             if global_variables.PRE_FFTSHIFT:
                 return scipy.fftpack.fft(A)
             else:
                 return ifftshift(scipy.fftpack.fft(fftshift(A)))
     def FFT_t_shift(self, A):
-        if PYFFTW_AVAILABLE:
-            self.fft_input[:] = fftshift(A)
-            return ifftshift(self.fft())
+        if MKL_AVAILABLE:
+            return ifftshift(mkl_fft.ifft(fftshift(A)))
         else:
             return ifftshift(scipy.fftpack.ifft(fftshift(A)))
     def IFFT_t_shift(self, A):
-        if PYFFTW_AVAILABLE:
-            self.ifft_input[:] = fftshift(A)
-            return ifftshift(self.ifft())
+        if MKL_AVAILABLE:
+            return ifftshift(mkl_fft.fft(fftshift(A)))
         else:
             return ifftshift(scipy.fftpack.fft(fftshift(A)))
     def FFT_t_2(self, A):        
-        if PYFFTW_AVAILABLE:
+        if MKL_AVAILABLE:
             if global_variables.PRE_FFTSHIFT:
-                self.fft_input_2[:] = A
-                return self.fft_2()
+                return mkl_fft.ifft(A)
             else:
-                self.fft_input_2[:] = fftshift(A)
-                return ifftshift(self.fft_2())
+                return ifftshift(mkl_fft.ifft(fftshift(A)))
         else:
             if global_variables.PRE_FFTSHIFT:
                 return scipy.fftpack.ifft(A)
             else:
                 return ifftshift(scipy.fftpack.ifft(fftshift(A)))
     def IFFT_t_2(self, A):        
-        if PYFFTW_AVAILABLE:
+        if MKL_AVAILABLE:
             if global_variables.PRE_FFTSHIFT:
-                self.ifft_input_2[:] = A
-                return self.ifft_2()
+                return mkl_fft.fft(A)
             else:
-                self.ifft_input_2[:] = fftshift(A)
-                return ifftshift(self.ifft_2())
+                return ifftshift(mkl_fft.fft(fftshift(A)))
         else:
             if global_variables.PRE_FFTSHIFT:
                 return scipy.fftpack.fft(A)
             else:
                 return ifftshift(scipy.fftpack.fft(fftshift(A)))
     def IFFT_t_3(self, A):        
-        if PYFFTW_AVAILABLE:
+        if MKL_AVAILABLE:
             if global_variables.PRE_FFTSHIFT:                
                 self.ifft_input_3[:] = A
                 return self.ifft_3()
